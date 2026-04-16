@@ -3,10 +3,18 @@ import { db } from '../db/index.js';
 import { usersTable } from '../models/index.js';
 import { eq } from 'drizzle-orm';
 import { randomBytes, createHmac } from 'crypto';
+import { signupPostRequestBodySchema } from '../validations/request.validation.js';
 const router = express.Router();
 
 router.post('/signup', async (req, res) => {
-  const { firstname, lastname, email, password } = req.body;
+  // const { firstname, lastname, email, password } = req.body;
+  const validationResult = await signupPostRequestBodySchema.safeParseAsync(req.body);
+
+  if(validationResult.error){
+    return res.status(400).json({ error: validationResult.error.format() });
+  }
+ 
+  const { firstname, lastname, email, password } = validationResult.data;
 
   // if(!firstname)    return res.status(400).json({error: 'firstname is requires'}); 
   // we are going to use Zod for validating these fields
