@@ -1,9 +1,9 @@
 import express from 'express';
-import { db } from '../db/index.js';
-import { usersTable } from '../models/index.js';
-import { eq } from 'drizzle-orm';
-import { randomBytes, createHmac } from 'crypto';
-import { signupPostRequestBodySchema } from '../validations/request.validation.js';
+import { signupPostRequestBodySchema, loginPostRequesBodySchema } from '../validations/request.validation.js';
+import {hashPasswordwithSalt} from '../utils/hash.js';
+import { getUserByEmail, createUser } from '../services/user.services.js';
+import jwt from 'jsonwebtoken';
+
 const router = express.Router();
 
 router.post('/signup', async (req, res) => {
@@ -19,30 +19,49 @@ router.post('/signup', async (req, res) => {
   // if(!firstname)    return res.status(400).json({error: 'firstname is requires'}); 
   // we are going to use Zod for validating these fields
 
-  const [existingUser] = await db.select({
-    id: usersTable.id,
-  }).from(usersTable).where(eq(usersTable.email, email));
-
+  const existingUser = await getUserByEmail(email);
   //if user exist
   if(existingUser)
       return res
         .status(400)
         .json({ error: `User with email ${email} already exists!`});
   
-  const salt = randomBytes(256).toString('hex');
-  const hashedPassword = createHmac('sha256', salt).update(password).digest('hex');
+  const {salt, password: hashedPassword} = hashPasswordwithSalt(password);
 
 
-  const [user] = await db.insert(usersTable).values({
-    email,
-    firstname,
-    lastname,
-    salt,
-    password: hashedPassword,
-  }).returning({ id: usersTable.id });
+  const user = await createUser(firstname, lastname, email, hashedPassword, salt);
 
 
   return res.status(201).json({ data: { userId: user.id } } );
+})
+
+//login route
+router.post('/login', async (req, res) =>{
+  const validationResult = await loginPostRequesBodySchema.safeParseAsync(req.body);
+
+  if(validationResult.error){
+    return res.status(400).json({error: validationResult.error.format()});
+  }
+
+  const {email, password} = validationResult.data;
+
+  const user = await getUserByEmail(email);
+  //if user exist
+  if(!user)
+      return res
+        .status(400)
+        .json({ error: `User with email ${email} does not exist!`});
+      
+  const { password: hashedPassword } = hashPasswordwithSalt(password, user.salt);
+
+  if(user.password != hashedPassword ){
+    return res.status(400).json({error: `Incorrect Password`});
+  }
+
+  //auth jwt
+  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+  return res.status(200).json({ data: { token } });
 })
 
 export default router;
