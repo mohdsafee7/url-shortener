@@ -15,8 +15,9 @@ app.get('/', (req, res)=>{
   
 })
 
-app.use(urlRouter); // this will add the urlRouter to the app, and all the routes defined in urlRouter will be prefixed with /url. For example, the /shorten route defined in urlRouter will be accessible at /url/shorten.
 app.use('/user', userRouter);
+app.use(urlRouter); // this will add the urlRouter to the app, and all the routes defined in urlRouter will be prefixed with /url. For example, the /shorten route defined in urlRouter will be accessible at /url/shorten.
+
 
 app.listen(PORT, ()=>{
   console.log(`Server is running on PORT ${PORT}`);
